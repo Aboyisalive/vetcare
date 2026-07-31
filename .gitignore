@@ -1,0 +1,13 @@
+# Local secrets — never commit
+.env
+backend/.env
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Build output
+backend/vetcare-server
+frontend/dist/
+node_modules/
