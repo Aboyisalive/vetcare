@@ -147,14 +147,34 @@ export interface Stats {
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    ...options,
-  })
+  let res: Response
+  try {
+    res = await fetch(API_BASE + path, {
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      ...options,
+    })
+  } catch {
+    // fetch only rejects when the request never got a reply: the API is down,
+    // the host no longer exists, or CORS blocked it. Browsers word this very
+    // differently ("Failed to fetch" in Chrome, "NetworkError when attempting
+    // to fetch resource" in Firefox), so say what it means instead.
+    throw new Error('Cannot reach the server. Check your connection and try again.')
+  }
   if (res.status === 204) return undefined as T
-  const body = await res.json()
-  if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
+  // Parse defensively: an error response is not always the API's JSON. A proxy
+  // 502, or the SPA catch-all serving index.html when the /api rewrite is
+  // missing, both arrive as non-JSON, and letting that parse failure escape
+  // hides the status code that actually explains the problem.
+  const text = await res.text()
+  let body: any
+  try {
+    body = text ? JSON.parse(text) : undefined
+  } catch {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    throw new Error('server returned a malformed response')
+  }
+  if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`)
   return body as T
 }
 
