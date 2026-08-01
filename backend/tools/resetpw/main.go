@@ -58,11 +58,15 @@ func main() {
 			   FROM users u
 			   LEFT JOIN owners o ON o.id = u.owner_id
 			   LEFT JOIN vets   v ON v.id = u.vet_id
-			  WHERE u.email LIKE `+ph(1)+`
-			     OR o.name  LIKE `+ph(2)+`
-			     OR v.name  LIKE `+ph(3)+`
+			  WHERE LOWER(u.email) LIKE `+ph(1)+`
+			     OR LOWER(o.name)  LIKE `+ph(2)+`
+			     OR LOWER(v.name)  LIKE `+ph(3)+`
 			  ORDER BY u.id`,
-			"%"+*match+"%", "%"+*match+"%", "%"+*match+"%")
+			// Lowercased both sides: Postgres LIKE is case-sensitive, so
+			// searching "col" would otherwise miss a profile named "Col".
+			"%"+strings.ToLower(*match)+"%",
+			"%"+strings.ToLower(*match)+"%",
+			"%"+strings.ToLower(*match)+"%")
 		if err != nil {
 			log.Fatalf("query: %v", err)
 		}
