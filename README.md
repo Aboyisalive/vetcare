@@ -66,6 +66,28 @@ both engines, so ordering and comparisons behave identically.
 | — | `-seed` | off | insert sample data and exit |
 | — | `-reminder-interval` | `1h` | reminder worker cadence |
 
+## Deploying
+
+The front end must reach the API on **its own origin**. Every host therefore
+rewrites `/api/*` to the backend service instead of the browser calling the API
+host directly:
+
+| Host | Where the rewrite lives |
+|------|-------------------------|
+| Vite dev / preview | `server.proxy` and `preview.proxy` in `frontend/vite.config.ts` |
+| Render static site | `routes` in `render.yaml` |
+| Vercel | `rewrites` in `frontend/vercel.json` |
+
+Leave `VITE_API_URL` **unset** in every deployment. Pointing it at the API host
+turns each call cross-origin, which needs CORS *and* makes the session cookie
+third-party — and Firefox and Safari block third-party cookies outright, so
+login breaks there no matter what `SameSite` value the cookie carries. On
+Vercel, `frontend/vercel.json` assumes the project's Root Directory is
+`frontend`; move it to the repo root if yours is the repo root instead.
+
+Rule order matters in both `render.yaml` and `vercel.json`: `/api/*` has to come
+before the SPA catch-all, or every API call is served `index.html`.
+
 ## Email reminders
 
 Worker runs on an interval (and at startup). It finds vaccinations with `next_due`
