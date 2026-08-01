@@ -536,6 +536,19 @@ button.slot.active {
   font-size: 0.88rem;
 }
 
+/* Sits over the landing/auth screen, which owns the whole viewport. Offset
+   clears the header bar rather than overlapping it. */
+.boot-error {
+  position: fixed;
+  top: 5.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.92);
+  max-width: min(90vw, 34rem);
+}
+
 .muted {
   color: var(--text-muted);
 }

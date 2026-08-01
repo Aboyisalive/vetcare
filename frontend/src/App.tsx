@@ -12,7 +12,7 @@ import VetDashboard from './pages/VetDashboard'
 import VetPatients from './pages/VetPatients'
 import VetAppointments from './pages/VetAppointments'
 import VetStaff from './pages/VetStaff'
-import { auth } from './api'
+import { ApiError, auth } from './api'
 import type { AuthUser } from './api'
 
 const ownerViews = [
@@ -41,12 +41,23 @@ export default function App() {
   const [petId, setPetId] = useState<number | null>(null)
   const [screen, setScreen] = useState<'landing' | 'auth'>('landing')
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [bootError, setBootError] = useState<string | null>(null)
 
   useEffect(() => {
     auth
       .me()
-      .then(setUser)
-      .catch(() => setUser(null))
+      .then((u) => {
+        setUser(u)
+        setBootError(null)
+      })
+      .catch((err: unknown) => {
+        setUser(null)
+        // 401 is the normal "nobody is signed in" answer. Anything else means
+        // the session could not be checked at all, and quietly showing the
+        // landing page would look identical to having been signed out.
+        const status = err instanceof ApiError ? err.status : -1
+        setBootError(status === 401 ? null : (err as Error).message)
+      })
       .finally(() => setReady(true))
   }, [])
 
@@ -85,10 +96,22 @@ export default function App() {
 
   if (!ready) return null
   if (!user) {
-    return screen === 'auth' ? (
-      <AuthPage mode={authMode} onAuth={onAuth} onBack={() => setScreen('landing')} />
-    ) : (
-      <Landing onSignIn={() => openAuth('signin')} onSignUp={() => openAuth('signup')} />
+    return (
+      <>
+        {bootError && (
+          <div className="error-banner boot-error" role="alert">
+            {bootError}{' '}
+            <button className="link" onClick={() => window.location.reload()}>
+              Retry
+            </button>
+          </div>
+        )}
+        {screen === 'auth' ? (
+          <AuthPage mode={authMode} onAuth={onAuth} onBack={() => setScreen('landing')} />
+        ) : (
+          <Landing onSignIn={() => openAuth('signin')} onSignUp={() => openAuth('signup')} />
+        )}
+      </>
     )
   }
 

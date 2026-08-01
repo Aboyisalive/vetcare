@@ -146,6 +146,29 @@ export interface Stats {
 // backend origin, and expect auth to fail outside Chrome if you do.
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
+/**
+ * A failed API call. `status` is the HTTP status, or 0 when the request never
+ * got a reply at all, which callers need to tell apart: a 401 means signed out,
+ * a 0 means the server is unreachable.
+ */
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+const UNREACHABLE = 'Cannot reach the server. Check your connection and try again.'
+
+// A gateway status means the proxy in front of the API could not reach it, so
+// it is the same failure as a rejected fetch from the user's point of view.
+const isGateway = (status: number) => status === 502 || status === 503 || status === 504
+
+const fallbackMessage = (status: number) =>
+  isGateway(status) ? UNREACHABLE : `HTTP ${status}`
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let res: Response
   try {
@@ -159,7 +182,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     // the host no longer exists, or CORS blocked it. Browsers word this very
     // differently ("Failed to fetch" in Chrome, "NetworkError when attempting
     // to fetch resource" in Firefox), so say what it means instead.
-    throw new Error('Cannot reach the server. Check your connection and try again.')
+    throw new ApiError(UNREACHABLE, 0)
   }
   if (res.status === 204) return undefined as T
   // Parse defensively: an error response is not always the API's JSON. A proxy
@@ -171,10 +194,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     body = text ? JSON.parse(text) : undefined
   } catch {
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    throw new Error('server returned a malformed response')
+    if (!res.ok) throw new ApiError(fallbackMessage(res.status), res.status)
+    throw new ApiError('server returned a malformed response', res.status)
   }
-  if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`)
+  if (!res.ok) throw new ApiError(body?.error ?? fallbackMessage(res.status), res.status)
   return body as T
 }
 
