@@ -138,13 +138,17 @@ export interface Stats {
   pending_requests: number
 }
 
-// Normally empty, so /api calls stay same-origin: vite proxies them in dev, and
-// the deployed static site rewrites /api/* to the API service (see render.yaml).
-// Same-origin keeps the session cookie first-party, which is what makes login
-// work in Firefox and Safari — both block third-party cookies outright, even
-// with SameSite=None. Only set VITE_API_URL to point at a genuinely separate
-// backend origin, and expect auth to fail outside Chrome if you do.
-const API_BASE = import.meta.env.VITE_API_URL ?? ''
+// Every call is relative, so it always lands on the origin serving the app, and
+// each host rewrites /api/* to the API: vite's proxy in dev and preview,
+// vercel.json on Vercel, render.yaml on Render.
+//
+// This is deliberately not configurable. Pointing the app straight at the API
+// host makes the session cookie third-party, and Firefox and Safari block those
+// outright, so login breaks there whatever SameSite value the cookie carries —
+// and it needs CORS the API does not grant. A build-time override (the old
+// VITE_API_URL) only ever reintroduced that bug, and silently, because an env
+// var left in a deployment dashboard beats any rewrite the repo ships.
+const API_BASE = ''
 
 /**
  * A failed API call. `status` is the HTTP status, or 0 when the request never

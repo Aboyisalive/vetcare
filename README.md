@@ -76,14 +76,18 @@ host directly:
 |------|-------------------------|
 | Vite dev / preview | `server.proxy` and `preview.proxy` in `frontend/vite.config.ts` |
 | Render static site | `routes` in `render.yaml` |
-| Vercel | `rewrites` in `frontend/vercel.json` |
+| Vercel | `rewrites` in `vercel.json` (repo root and `frontend/`, so either Root Directory works) |
 
-Leave `VITE_API_URL` **unset** in every deployment. Pointing it at the API host
-turns each call cross-origin, which needs CORS *and* makes the session cookie
-third-party — and Firefox and Safari block third-party cookies outright, so
-login breaks there no matter what `SameSite` value the cookie carries. On
-Vercel, `frontend/vercel.json` assumes the project's Root Directory is
-`frontend`; move it to the repo root if yours is the repo root instead.
+The API base URL is not configurable — `frontend/src/api.ts` hardcodes it empty.
+There used to be a `VITE_API_URL` override; it is gone, because a stale value in
+a deployment dashboard silently beats every rewrite the repo ships, and the
+result is a cross-origin app that needs CORS the API does not grant and a
+session cookie Firefox and Safari discard as third-party. If you still have
+`VITE_API_URL` set anywhere, delete it — it now does nothing.
+
+On Vercel, `frontend/vercel.json` applies when the project's Root Directory is
+`frontend`, and the repo-root `vercel.json` when it is the repo root. Both are
+present, so either setting works.
 
 Rule order matters in both `render.yaml` and `vercel.json`: `/api/*` has to come
 before the SPA catch-all, or every API call is served `index.html`.
