@@ -1,0 +1,44 @@
+# Render blueprint. The important part is the /api/* rewrite on the static site:
+# it makes the browser see one origin, so the session cookie stays first-party.
+# Firefox and Safari block third-party cookies outright, so a split-origin setup
+# (frontend calling the API host directly) breaks login there no matter what
+# SameSite value the cookie carries.
+#
+# Rule order matters: /api/* must come before the SPA catch-all, or every API
+# call gets served index.html.
+
+services:
+  - type: web
+    name: vetcare-api
+    runtime: go
+    rootDir: backend
+    plan: free
+    buildCommand: go build -tags netgo -ldflags '-s -w' -o app
+    startCommand: ./app --addr :$PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: GO_VERSION
+        value: "1.26.0"
+      - key: DATABASE_URL
+        sync: false # set in the dashboard; never commit the connection string
+      # ALLOWED_ORIGINS is intentionally unset. With the rewrite below every
+      # request is same-origin, so CORS never engages. Setting it to "*" or
+      # reflecting arbitrary origins would let any site read a signed-in user's
+      # data using their session cookie.
+
+  - type: web
+    name: vetcare-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci --include=dev && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "24.18.1"
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://vetcare-6j4f.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html

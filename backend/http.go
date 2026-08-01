@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type apiError struct {
@@ -39,16 +40,39 @@ func pathID(r *http.Request) (int64, error) {
 	return id, nil
 }
 
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" {
-			// Reflect the origin so credentialed (cookie) requests work in dev.
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+// parseOrigins splits a comma-separated ALLOWED_ORIGINS value into a lookup set.
+func parseOrigins(raw string) map[string]bool {
+	allowed := map[string]bool{}
+	for _, o := range strings.Split(raw, ",") {
+		if o = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(o), "/")); o != "" {
+			allowed[o] = true
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	}
+	return allowed
+}
+
+// cors grants credentialed access to the origins in allowed, and to nothing else.
+//
+// The deployed setup needs no entries at all: the static site rewrites /api/* to
+// this service, and vite proxies /api in dev, so the browser considers every call
+// same-origin and CORS never engages. Populate ALLOWED_ORIGINS only if the front
+// end is ever served from a genuinely different origin.
+//
+// Never reflect an arbitrary Origin here. Paired with
+// Access-Control-Allow-Credentials, that lets any site a signed-in user visits
+// read their VetCare data with their session cookie attached.
+func cors(allowed map[string]bool, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && allowed[strings.TrimSuffix(origin, "/")] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		}
+		// Vary regardless: the response differs by Origin even when it is rejected,
+		// so a cache must not serve one origin's response to another.
+		w.Header().Add("Vary", "Origin")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

@@ -138,15 +138,17 @@ export interface Stats {
   pending_requests: number
 }
 
-// Empty in dev, where vite proxies /api to localhost:8080. In production the
-// static site and the API are separate Render services, so calls need the
-// absolute backend URL (see .env.production).
+// Normally empty, so /api calls stay same-origin: vite proxies them in dev, and
+// the deployed static site rewrites /api/* to the API service (see render.yaml).
+// Same-origin keeps the session cookie first-party, which is what makes login
+// work in Firefox and Safari — both block third-party cookies outright, even
+// with SameSite=None. Only set VITE_API_URL to point at a genuinely separate
+// backend origin, and expect auth to fail outside Chrome if you do.
 const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(API_BASE + path, {
     headers: { 'Content-Type': 'application/json' },
-    // The session cookie is cross-site once the two services are split apart.
     credentials: 'include',
     ...options,
   })

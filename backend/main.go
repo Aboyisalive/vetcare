@@ -98,8 +98,13 @@ func main() {
 
 	s.startReminderWorker(*reminderEvery)
 
+	allowed := parseOrigins(os.Getenv("ALLOWED_ORIGINS"))
+	if len(allowed) > 0 {
+		log.Printf("CORS: allowing credentialed requests from %d origin(s)", len(allowed))
+	}
+
 	log.Printf("VetCare API listening on %s", *addr)
-	if err := http.ListenAndServe(*addr, cors(mux)); err != nil {
+	if err := http.ListenAndServe(*addr, cors(allowed, mux)); err != nil {
 		log.Fatal(err)
 	}
 }
