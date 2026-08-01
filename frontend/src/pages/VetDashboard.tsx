@@ -40,12 +40,14 @@ export default function VetDashboard({
         ['Owners', stats.owners],
         ['Patients', stats.pets],
         ['Staff', stats.vets],
+        ['Requests to answer', stats.pending_requests],
         ['Upcoming surgeries', stats.upcoming_surgeries],
         ['Vaccinations due (14d)', stats.vaccinations_due_soon],
       ]
     : [
         ['My clients', stats.owners],
         ['My patients', stats.pets],
+        ['Requests to answer', stats.pending_requests],
         ['My upcoming surgeries', stats.upcoming_surgeries],
         ['Vaccinations due (14d)', stats.vaccinations_due_soon],
       ]

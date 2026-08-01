@@ -11,6 +11,7 @@ export default function Dashboard({
 }) {
   const [pets, setPets] = useState<Pet[]>([])
   const [surgeries, setSurgeries] = useState<Surgery[]>([])
+  const [requested, setRequested] = useState<Surgery[]>([])
   const [due, setDue] = useState<Vaccination[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -22,11 +23,14 @@ export default function Dashboard({
       api.get<Surgery[]>('/api/surgeries?status=scheduled'),
       api.get<Vaccination[]>('/api/vaccinations?due_within=30'),
       api.get<Reminder[]>('/api/reminders?status=pending'),
+      // Bookings the vet has not answered yet.
+      api.get<Surgery[]>('/api/surgeries?status=requested'),
     ])
-      .then(([p, sg, vx, rm]) => {
+      .then(([p, sg, vx, rm, rq]) => {
         const petIds = new Set(p.map((pet) => pet.id))
         setPets(p)
         setSurgeries(sg.filter((s) => petIds.has(s.pet_id)))
+        setRequested(rq.filter((s) => petIds.has(s.pet_id)))
         setDue(vx.filter((v) => petIds.has(v.pet_id)))
         setReminders(rm.filter((r) => r.owner_email === owner.email))
         setLoaded(true)
@@ -40,6 +44,7 @@ export default function Dashboard({
   const tiles: [string, number][] = [
     ['My pets', pets.length],
     ['Upcoming appointments', surgeries.length],
+    ['Awaiting confirmation', requested.length],
     ['Vaccinations due (30d)', due.length],
     ['Pending reminders', reminders.length],
   ]

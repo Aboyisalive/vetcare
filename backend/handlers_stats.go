@@ -12,6 +12,8 @@ type stats struct {
 	UpcomingSurgeries int `json:"upcoming_surgeries"`
 	VaccinationsDue   int `json:"vaccinations_due_soon"`
 	PendingReminders  int `json:"pending_reminders"`
+	// Appointment requests still waiting for a vet to accept or decline.
+	PendingRequests int `json:"pending_requests"`
 }
 
 func (s *server) getStats(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +31,9 @@ func (s *server) getStats(w http.ResponseWriter, r *http.Request) {
 		 (SELECT COUNT(*) FROM vaccinations x JOIN pets p ON p.id = x.pet_id
 		  WHERE p.owner_id = ?1 AND x.next_due != '' AND x.next_due <= `+dueCutoff+`),
 		 (SELECT COUNT(*) FROM reminders r JOIN vaccinations x ON x.id = r.vaccination_id
-		  JOIN pets p ON p.id = x.pet_id WHERE p.owner_id = ?1 AND r.status = 'pending')`, own)
+		  JOIN pets p ON p.id = x.pet_id WHERE p.owner_id = ?1 AND r.status = 'pending'),
+		 (SELECT COUNT(*) FROM surgeries s JOIN pets p ON p.id = s.pet_id
+		  WHERE p.owner_id = ?1 AND s.status = 'requested')`, own)
 	} else if vetID, ok := vetScope(r); ok {
 		// Non-admin staff see their own caseload: owners of their patients,
 		// their patients, their appointments, their patients' vaccinations.
@@ -43,7 +47,8 @@ func (s *server) getStats(w http.ResponseWriter, r *http.Request) {
 		 (SELECT COUNT(*) FROM vaccinations x JOIN pets p ON p.id = x.pet_id
 		  WHERE p.vet_id = ?1 AND x.next_due != '' AND x.next_due <= `+dueCutoff+`),
 		 (SELECT COUNT(*) FROM reminders r JOIN vaccinations x ON x.id = r.vaccination_id
-		  JOIN pets p ON p.id = x.pet_id WHERE p.vet_id = ?1 AND r.status = 'pending')`, vetID)
+		  JOIN pets p ON p.id = x.pet_id WHERE p.vet_id = ?1 AND r.status = 'pending'),
+		 (SELECT COUNT(*) FROM surgeries WHERE vet_id = ?1 AND status = 'requested')`, vetID)
 	} else {
 		row = s.db.QueryRow(`
 		SELECT
@@ -52,10 +57,11 @@ func (s *server) getStats(w http.ResponseWriter, r *http.Request) {
 		 (SELECT COUNT(*) FROM vets),
 		 (SELECT COUNT(*) FROM surgeries WHERE status = 'scheduled' AND scheduled_at >= ` + now + `),
 		 (SELECT COUNT(*) FROM vaccinations WHERE next_due != '' AND next_due <= ` + dueCutoff + `),
-		 (SELECT COUNT(*) FROM reminders WHERE status = 'pending')`)
+		 (SELECT COUNT(*) FROM reminders WHERE status = 'pending'),
+		 (SELECT COUNT(*) FROM surgeries WHERE status = 'requested')`)
 	}
 	if err := row.Scan(&st.Owners, &st.Pets, &st.Vets, &st.UpcomingSurgeries,
-		&st.VaccinationsDue, &st.PendingReminders); err != nil {
+		&st.VaccinationsDue, &st.PendingReminders, &st.PendingRequests); err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}

@@ -127,7 +127,8 @@ Base: `http://localhost:8080/api`
 | Pets | `GET,POST /pets` (`?owner_id=&vet_id=`) · `GET,PUT,DELETE /pets/{id}` · `PUT /pets/{id}/vet` (admin) |
 | Medical records | `GET /pets/{id}/records` · `POST /records` · `PUT,DELETE /records/{id}` |
 | Vets | `GET,POST /vets` · `PUT,DELETE /vets/{id}` |
-| Surgeries | `GET,POST /surgeries` (`?status=&pet_id=&vet_id=&from=&to=`) · `PUT,DELETE /surgeries/{id}` |
+| Availability | `GET /availability` (`?pet_id=&date=&duration=`) |
+| Surgeries | `GET,POST /surgeries` (`?status=&pet_id=&vet_id=&from=&to=`) · `PUT,DELETE /surgeries/{id}` · `POST /surgeries/{id}/respond` |
 | Vaccinations | `GET,POST /vaccinations` (`?pet_id=&due_within=`) · `PUT,DELETE /vaccinations/{id}` |
 | Reminders | `GET /reminders` (`?status=`) · `POST /reminders/run` · `DELETE /reminders/{id}` |
 

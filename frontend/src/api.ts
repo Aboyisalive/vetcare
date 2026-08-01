@@ -60,9 +60,25 @@ export interface Surgery {
   procedure: string
   scheduled_at: string
   duration_min: number
-  status: 'scheduled' | 'completed' | 'cancelled'
+  // 'requested' is an owner's booking waiting for the vet to accept it.
+  status: 'requested' | 'scheduled' | 'completed' | 'cancelled' | 'declined'
   notes: string
   created_at: string
+}
+
+/** One eligible vet and the start times they are free on the requested day. */
+export interface VetSlots {
+  vet_id: number
+  vet_name: string
+  specialty: string
+  slots: string[]
+}
+
+export interface Availability {
+  date: string
+  duration_min: number
+  closed: boolean
+  vets: VetSlots[]
 }
 
 export interface Vaccination {
@@ -119,11 +135,19 @@ export interface Stats {
   upcoming_surgeries: number
   vaccinations_due_soon: number
   pending_reminders: number
+  pending_requests: number
 }
 
+// Empty in dev, where vite proxies /api to localhost:8080. In production the
+// static site and the API are separate Render services, so calls need the
+// absolute backend URL (see .env.production).
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(API_BASE + path, {
     headers: { 'Content-Type': 'application/json' },
+    // The session cookie is cross-site once the two services are split apart.
+    credentials: 'include',
     ...options,
   })
   if (res.status === 204) return undefined as T

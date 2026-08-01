@@ -79,9 +79,12 @@ func main() {
 	mux.HandleFunc("PUT /api/records/{id}", s.requireVet(s.updateRecord))
 	mux.HandleFunc("DELETE /api/records/{id}", s.requireVet(s.deleteRecord))
 
+	mux.HandleFunc("GET /api/availability", s.requireAuth(s.getAvailability))
 	mux.HandleFunc("GET /api/surgeries", s.requireAuth(s.listSurgeries))
-	mux.HandleFunc("POST /api/surgeries", s.requireVet(s.createSurgery))
+	// Owners may book here too — their bookings land as pending requests.
+	mux.HandleFunc("POST /api/surgeries", s.requireAuth(s.createSurgery))
 	mux.HandleFunc("PUT /api/surgeries/{id}", s.requireAuth(s.updateSurgery))
+	mux.HandleFunc("POST /api/surgeries/{id}/respond", s.requireVet(s.respondSurgery))
 	mux.HandleFunc("DELETE /api/surgeries/{id}", s.requireVet(s.deleteSurgery))
 
 	mux.HandleFunc("GET /api/vaccinations", s.requireAuth(s.listVaccinations))

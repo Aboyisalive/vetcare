@@ -93,6 +93,9 @@ func (db *DB) migrate() error {
 	if err := db.addColumns(); err != nil {
 		return err
 	}
+	if err := db.widenSurgeryStatus(); err != nil {
+		return err
+	}
 	// Indexes on added columns must come after the ALTER TABLE above: on a
 	// database that already has the table, CREATE TABLE IF NOT EXISTS is a
 	// no-op, so the column only exists once addColumns has run.
@@ -126,6 +129,54 @@ var addedColumns = []addedColumn{
 		sqlite: `ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`,
 		pg:     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`,
 	},
+}
+
+// surgeryStatusCheck is the current allowed set for surgeries.status. Owner
+// bookings introduced 'requested' and 'declined', so databases created before
+// that carry a narrower CHECK constraint and must be widened.
+const surgeryStatusCheck = `status IN ('requested','scheduled','completed','cancelled','declined')`
+
+// widenSurgeryStatus brings an existing database's surgeries.status constraint
+// up to date. Idempotent on both engines.
+func (db *DB) widenSurgeryStatus() error {
+	if db.postgres() {
+		// Postgres names the inline CHECK surgeries_status_check; drop and
+		// recreate it so the statement can be re-run safely.
+		_, err := db.DB.Exec(`
+			ALTER TABLE surgeries DROP CONSTRAINT IF EXISTS surgeries_status_check;
+			ALTER TABLE surgeries ADD CONSTRAINT surgeries_status_check CHECK (` + surgeryStatusCheck + `)`)
+		return err
+	}
+	// SQLite cannot alter a CHECK, so the table is rebuilt — but only when the
+	// stored DDL is actually the old one.
+	var ddl string
+	err := db.DB.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='surgeries'`).Scan(&ddl)
+	if err != nil || strings.Contains(ddl, "'requested'") {
+		return nil // fresh database (already correct) or no such table yet
+	}
+	_, err = db.DB.Exec(`
+		PRAGMA foreign_keys=off;
+		BEGIN;
+		CREATE TABLE surgeries_new (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			pet_id       INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+			vet_id       INTEGER REFERENCES vets(id) ON DELETE SET NULL,
+			procedure    TEXT NOT NULL,
+			scheduled_at TEXT NOT NULL,
+			duration_min INTEGER NOT NULL DEFAULT 60,
+			status       TEXT NOT NULL DEFAULT 'scheduled' CHECK (` + surgeryStatusCheck + `),
+			notes        TEXT NOT NULL DEFAULT '',
+			created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		INSERT INTO surgeries_new (id, pet_id, vet_id, procedure, scheduled_at, duration_min, status, notes, created_at)
+			SELECT id, pet_id, vet_id, procedure, scheduled_at, duration_min, status, notes, created_at FROM surgeries;
+		DROP TABLE surgeries;
+		ALTER TABLE surgeries_new RENAME TO surgeries;
+		CREATE INDEX IF NOT EXISTS idx_surgeries_pet ON surgeries(pet_id);
+		CREATE INDEX IF NOT EXISTS idx_surgeries_time ON surgeries(scheduled_at);
+		COMMIT;
+		PRAGMA foreign_keys=on;`)
+	return err
 }
 
 func (db *DB) addColumns() error {
@@ -216,7 +267,7 @@ CREATE TABLE IF NOT EXISTS surgeries (
 	procedure    TEXT NOT NULL,
 	scheduled_at TEXT NOT NULL,
 	duration_min INTEGER NOT NULL DEFAULT 60,
-	status       TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled')),
+	status       TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('requested','scheduled','completed','cancelled','declined')),
 	notes        TEXT NOT NULL DEFAULT '',
 	created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -325,7 +376,7 @@ CREATE TABLE IF NOT EXISTS surgeries (
 	procedure    TEXT NOT NULL,
 	scheduled_at TEXT NOT NULL,
 	duration_min INTEGER NOT NULL DEFAULT 60,
-	status       TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','completed','cancelled')),
+	status       TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('requested','scheduled','completed','cancelled','declined')),
 	notes        TEXT NOT NULL DEFAULT '',
 	created_at   TEXT NOT NULL DEFAULT to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')
 );

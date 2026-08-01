@@ -17,6 +17,23 @@ const (
 	sessionTTL    = 7 * 24 * time.Hour
 )
 
+// applyCookiePolicy sets the SameSite/Secure attributes on the session cookie.
+//
+// In dev the browser talks to vite, which proxies /api, so everything is
+// same-origin and Lax works. In production the static site and this API sit on
+// different hosts; browsers only attach a cookie to a cross-site XHR when it is
+// SameSite=None, and refuse SameSite=None unless it is also Secure. Set
+// CROSS_SITE_COOKIES=true on the deployed API to switch modes.
+func applyCookiePolicy(c *http.Cookie) *http.Cookie {
+	if strings.EqualFold(envOr("CROSS_SITE_COOKIES", ""), "true") {
+		c.SameSite = http.SameSiteNoneMode
+		c.Secure = true
+		return c
+	}
+	c.SameSite = http.SameSiteLaxMode
+	return c
+}
+
 type authUser struct {
 	ID      int64
 	Email   string
@@ -97,14 +114,13 @@ func (s *server) createSession(w http.ResponseWriter, userID int64) error {
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, applyCookiePolicy(&http.Cookie{
 		Name:     sessionCookie,
 		Value:    token,
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	}))
 	return nil
 }
 
@@ -293,14 +309,13 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
 		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token = ?`, c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, applyCookiePolicy(&http.Cookie{
 		Name:     sessionCookie,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	}))
 	w.WriteHeader(204)
 }
 

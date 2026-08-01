@@ -1,0 +1,14 @@
+# Local secrets — never commit. DATABASE_URL and SMTP credentials live here.
+.env
+.env.*
+!.env.example
+
+# SQLite databases (used when DATABASE_URL is empty)
+*.db
+*.db-shm
+*.db-wal
+
+# Compiled binaries: `app` is Render's build output, the others are local builds
+app
+backend
+vetcare-server

@@ -8,6 +8,8 @@ backend/.env
 *.db-wal
 
 # Build output
+backend/app
+backend/backend
 backend/vetcare-server
 frontend/dist/
 node_modules/

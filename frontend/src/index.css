@@ -417,10 +417,85 @@ form.entity-form .form-actions {
 
 .badge.cancelled,
 .badge.failed,
-.badge.overdue {
+.badge.overdue,
+.badge.declined {
   background: rgba(179, 55, 47, 0.12);
   border-color: rgba(179, 55, 47, 0.25);
   color: var(--danger);
+}
+
+/* An owner's booking that the vet has not answered yet. */
+.badge.requested {
+  background: rgba(56, 112, 160, 0.14);
+  border-color: rgba(56, 112, 160, 0.3);
+  color: #2b5f8c;
+}
+
+/* ---------- Appointment requests & slot picker ---------- */
+
+.card.requests {
+  border-left: 3px solid var(--primary);
+}
+
+.card.requests h3 {
+  margin-top: 0;
+}
+
+/* Keep the accept/decline pair on one line — flex on a <td> would drop it out
+   of the table layout and leave a gap in the row. */
+.card.requests .row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.slot-picker {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+/* The confirm button sits below the slot grid, not tight against it. */
+.slot-picker + .form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.1rem;
+}
+
+.slot-vet-name {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.slot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+button.slot {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 43, 51, 0.18);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button.slot:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+button.slot.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 .badge.admin {

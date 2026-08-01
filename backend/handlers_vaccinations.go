@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -53,12 +54,26 @@ func (s *server) listVaccinations(w http.ResponseWriter, r *http.Request) {
 		where = append(where, "p.owner_id = ?")
 		args = append(args, own)
 	}
+	petID := r.URL.Query().Get("pet_id")
 	if vetID, ok := vetScope(r); ok {
-		// Non-admin staff only see vaccinations for their own patients.
-		where = append(where, "p.vet_id = ?")
-		args = append(args, vetID)
+		if petID == "" {
+			// Unscoped lists cover the patients assigned to them, nothing more.
+			where = append(where, "p.vet_id = ?")
+			args = append(args, vetID)
+		} else {
+			// A pet-scoped request is that patient's chart: show it in full for
+			// any patient in the vet's caseload, matching medical records.
+			id, err := strconv.ParseInt(petID, 10, 64)
+			if err != nil {
+				writeErr(w, 400, "invalid pet_id")
+				return
+			}
+			if !s.petInCaseload(w, id, vetID) {
+				return
+			}
+		}
 	}
-	if petID := r.URL.Query().Get("pet_id"); petID != "" {
+	if petID != "" {
 		where = append(where, "x.pet_id = ?")
 		args = append(args, petID)
 	}

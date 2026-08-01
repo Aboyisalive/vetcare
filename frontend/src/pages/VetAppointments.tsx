@@ -83,6 +83,22 @@ export default function VetAppointments({ isAdmin, vet }: { isAdmin: boolean; ve
     setShowForm(true)
   }
 
+  // Owner requests are not real appointments until the vet answers them.
+  const respond = async (s: Surgery, action: 'accept' | 'decline') => {
+    if (
+      action === 'decline' &&
+      !confirm(`Decline "${s.procedure}" for ${s.pet_name}? The slot is released.`)
+    )
+      return
+    setError('')
+    try {
+      await api.post(`/api/surgeries/${s.id}/respond`, { action })
+      load()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   const setStatus = async (s: Surgery, status: Surgery['status']) => {
     setError('')
     try {
@@ -111,15 +127,19 @@ export default function VetAppointments({ isAdmin, vet }: { isAdmin: boolean; ve
     }
   }
 
+  const pending = surgeries.filter((s) => s.status === 'requested')
+
   return (
     <div>
       <div className="toolbar">
         <h2>{isAdmin ? 'Clinic schedule' : 'My appointments'}</h2>
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">All statuses</option>
+          <option value="requested">Awaiting my response</option>
           <option value="scheduled">Scheduled</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
+          <option value="declined">Declined</option>
         </select>
         {isAdmin && (
           <select value={vetFilter} onChange={(e) => setVetFilter(e.target.value)}>
@@ -147,6 +167,46 @@ export default function VetAppointments({ isAdmin, vet }: { isAdmin: boolean; ve
         <p className="muted">Showing only the appointments assigned to you.</p>
       )}
       {error && <div className="error-banner">{error}</div>}
+
+      {pending.length > 0 && (
+        <div className="card requests">
+          <h3>
+            {pending.length} appointment request{pending.length > 1 ? 's' : ''} awaiting
+            {isAdmin ? ' a response' : ' your response'}
+          </h3>
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Pet</th>
+                <th>Reason</th>
+                <th>Owner's note</th>
+                {isAdmin && <th>For</th>}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pending.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.scheduled_at.replace('T', ' ')}</td>
+                  <td>{s.pet_name}</td>
+                  <td>{s.procedure}</td>
+                  <td className="muted">{s.notes || '—'}</td>
+                  {isAdmin && <td>{s.vet_name || 'Unassigned'}</td>}
+                  <td className="row-actions">
+                    <button className="btn small primary" onClick={() => respond(s, 'accept')}>
+                      Accept
+                    </button>
+                    <button className="btn small" onClick={() => respond(s, 'decline')}>
+                      Decline
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {showForm && (
         <div className="card">
@@ -269,6 +329,16 @@ export default function VetAppointments({ isAdmin, vet }: { isAdmin: boolean; ve
                 <td className="row-actions">
                   <RowMenu
                     actions={[
+                      ...(s.status === 'requested'
+                        ? [
+                            { label: 'Accept request', onClick: () => respond(s, 'accept') },
+                            {
+                              label: 'Decline request',
+                              danger: true,
+                              onClick: () => respond(s, 'decline'),
+                            },
+                          ]
+                        : []),
                       { label: 'Edit / reschedule', onClick: () => edit(s) },
                       ...(s.status === 'scheduled'
                         ? [
